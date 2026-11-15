@@ -18,7 +18,7 @@ struct Explore3DScreen: View {
                 .frame(minHeight: 44)
         } content: {
             ProductPreviewTile(product: product, angle: angle, allowsRotation: true, resetCount: resetCount)
-                .frame(height: 340)
+                .frame(height: 300)
             PillSegmented(
                 options: [(ViewAngle.front, "Front"), (.side, "Side"), (.back, "Back")],
                 selection: $angle
