@@ -1,30 +1,30 @@
 import SwiftUI
 
 struct RootView: View {
+    @Environment(AppStore.self) private var store
+
     var body: some View {
-        TabView {
-            Tab("Discover", systemImage: "sparkles") {
+        @Bindable var store = store
+        TabView(selection: $store.selectedTab) {
+            Tab("Discover", systemImage: "sparkle", value: AppTab.discover) {
                 NavigationStack {
-                    ContentUnavailableView("Discover", systemImage: "sparkles", description: Text("Your looks will appear here."))
-                        .navigationTitle("Discover")
+                    DiscoverScreen()
                 }
             }
-            Tab("Saved", systemImage: "heart") {
+            Tab("Saved", systemImage: "heart", value: AppTab.saved) {
                 NavigationStack {
-                    ContentUnavailableView("Nothing saved yet", systemImage: "heart", description: Text("Swipe right on a look to save it."))
-                        .navigationTitle("Saved")
+                    SavedScreen()
                 }
             }
-            Tab("Bag", systemImage: "bag") {
+            Tab("Bag", systemImage: "bag", value: AppTab.bag) {
                 NavigationStack {
-                    ContentUnavailableView("Your bag is empty", systemImage: "bag", description: Text("Add a suggested size from any look."))
-                        .navigationTitle("Bag")
+                    BagScreen()
                 }
             }
-            Tab("You", systemImage: "person.crop.circle") {
+            .badge(store.bagCount)
+            Tab("You", systemImage: "person", value: AppTab.you) {
                 NavigationStack {
-                    ContentUnavailableView("You", systemImage: "person.crop.circle", description: Text("Your model and measurements live here."))
-                        .navigationTitle("You")
+                    YouScreen()
                 }
             }
         }
@@ -33,4 +33,5 @@ struct RootView: View {
 
 #Preview {
     RootView()
+        .environment(AppStore(persistent: false))
 }
