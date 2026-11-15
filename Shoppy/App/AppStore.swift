@@ -6,7 +6,7 @@ enum AppTab: Hashable {
     case discover, saved, bag, you
 }
 
-/// Single source of truth for the demo: profile, catalog, saves, bag, and demo orders.
+/// Single source of truth for the profile, catalog, saves, bag, and sandbox orders.
 /// State persists to a local JSON file and mirrors to `sync` when one is attached.
 @MainActor
 @Observable
@@ -17,7 +17,7 @@ final class AppStore {
         var savedIDs: [String] = []
         var passedIDs: Set<String> = []
         var cart: [CartItem] = []
-        var orders: [DemoOrder] = []
+        var orders: [Order] = []
     }
 
     private(set) var profile: BodyProfile
@@ -26,11 +26,11 @@ final class AppStore {
     private(set) var savedIDs: [String]
     private(set) var passedIDs: Set<String>
     private(set) var cart: [CartItem]
-    private(set) var orders: [DemoOrder]
+    private(set) var orders: [Order]
     var selectedTab: AppTab = .discover
 
     @ObservationIgnored var sync: RemoteSync?
-    @ObservationIgnored var checkout: CheckoutService = LocalDemoCheckout()
+    @ObservationIgnored var checkout: CheckoutService = UnavailableCheckout()
     @ObservationIgnored private let fileURL: URL?
 
     /// Pass `persistent: false` for previews and tests.
@@ -167,15 +167,21 @@ final class AppStore {
         }
     }
 
-    /// Places a simulated order and empties the bag. Throws CheckoutError and leaves the bag intact on failure.
-    func placeDemoOrder() async throws -> DemoOrder {
-        guard canCheckout else { throw CheckoutError.declined }
-        let order = try await checkout.placeDemoOrder(lines: orderLines(), totalCents: subtotalCents)
-        orders.insert(order, at: 0)
-        for item in cart {
-            sync?.removeCartItem(id: item.id)
+    func startCheckout() async throws -> CheckoutSession {
+        guard canCheckout else { throw CheckoutError.invalidResponse }
+        let session = try await checkout.startCheckout(items: cart, lines: orderLines())
+        upsertOrder(session.order)
+        persist()
+        return session
+    }
+
+    func waitForCheckout(orderID: String) async throws -> Order {
+        let order = try await checkout.waitForTerminalOrder(id: orderID)
+        upsertOrder(order)
+        if order.status == .paid {
+            let clearedIDs = Set(order.clearedCartItemIDs)
+            cart.removeAll { clearedIDs.contains($0.id) }
         }
-        cart.removeAll()
         persist()
         return order
     }
@@ -183,12 +189,20 @@ final class AppStore {
     // MARK: Remote state
 
     /// Replaces local state with what the backend holds. Called by RemoteSync after it loads.
-    func applyRemote(profile: BodyProfile?, savedIDs: [String]?, cart: [CartItem]?, orders: [DemoOrder]?) {
+    func applyRemote(profile: BodyProfile?, savedIDs: [String]?, cart: [CartItem]?, orders: [Order]?) {
         if let profile { self.profile = profile }
         if let savedIDs { self.savedIDs = savedIDs }
         if let cart { self.cart = cart }
         if let orders { self.orders = orders }
         persist()
+    }
+
+    private func upsertOrder(_ order: Order) {
+        if let index = orders.firstIndex(where: { $0.id == order.id }) {
+            orders[index] = order
+        } else {
+            orders.insert(order, at: 0)
+        }
     }
 
     private func persist() {

@@ -41,9 +41,12 @@ struct ModelPreviewView: View {
             if let source, !loadFailed {
                 RealityView { content in
                     content.camera = .virtual
+                    let isStandaloneGarment = source.deletingPathExtension().lastPathComponent.hasPrefix("garment-")
+                    let cameraHeight: Float = isStandaloneGarment ? 0.375 : 0.93
+                    let cameraDistance: Float = isStandaloneGarment ? 1.8 : 4.05
                     let camera = PerspectiveCamera()
                     camera.camera.fieldOfViewInDegrees = 30
-                    camera.look(at: [0, 0.93, 0], from: [0, 0.93, 4.05], relativeTo: nil)
+                    camera.look(at: [0, cameraHeight, 0], from: [0, cameraHeight, cameraDistance], relativeTo: nil)
                     content.add(camera)
                     let key = DirectionalLight()
                     key.light.intensity = 2200
@@ -58,10 +61,14 @@ struct ModelPreviewView: View {
                         return
                     }
                     let pivot = Entity()
-                    pivot.orientation = simd_quatf(angle: yaw ?? angle.yaw, axis: [0, 1, 0])
                     pivot.addChild(model)
                     content.add(pivot)
                     self.pivot = pivot
+                } update: { _ in
+                    guard yawAtDragStart == nil, let pivot else { return }
+                    var transform = pivot.transform
+                    transform.rotation = simd_quatf(angle: yaw ?? angle.yaw, axis: [0, 1, 0])
+                    pivot.move(to: transform, relativeTo: pivot.parent, duration: 0.35, timingFunction: .easeInOut)
                 }
                 .id(source)
                 .gesture(allowsRotation ? rotation : nil)
@@ -109,10 +116,6 @@ struct ModelPreviewView: View {
 
     private func snap() {
         yaw = angle.yaw
-        guard let pivot else { return }
-        var transform = pivot.transform
-        transform.rotation = simd_quatf(angle: angle.yaw, axis: [0, 1, 0])
-        pivot.move(to: transform, relativeTo: pivot.parent, duration: 0.35, timingFunction: .easeInOut)
     }
 }
 
@@ -121,17 +124,39 @@ struct ModelPreviewView: View {
 final class ModelLibrary {
     static let shared = ModelLibrary()
     private var loaded: [URL: Entity] = [:]
+    private var loading: [URL: Task<Entity?, Never>] = [:]
 
     nonisolated static func bundledURL(_ assetName: String?) -> URL? {
         Bundle.main.url(forResource: assetName ?? "scan", withExtension: "usdz")
     }
 
     func entity(for url: URL) async -> Entity? {
-        if let cached = loaded[url] {
-            return cached.clone(recursive: true)
+        guard let source = await sourceEntity(for: url) else { return nil }
+        return source.clone(recursive: true)
+    }
+
+    func preload(_ urls: [URL]) async {
+        for url in urls {
+            _ = await sourceEntity(for: url)
         }
-        guard let entity = try? await Entity(contentsOf: url) else { return nil }
-        loaded[url] = entity
-        return entity.clone(recursive: true)
+    }
+
+    private func sourceEntity(for url: URL) async -> Entity? {
+        if let entity = loaded[url] {
+            return entity
+        }
+        if let task = loading[url] {
+            return await task.value
+        }
+        let task = Task { @MainActor in
+            try? await Entity(contentsOf: url)
+        }
+        loading[url] = task
+        let entity = await task.value
+        loading[url] = nil
+        if let entity {
+            loaded[url] = entity
+        }
+        return entity
     }
 }

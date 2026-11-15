@@ -1,5 +1,5 @@
 #!/bin/bash
-# Re-seeds the Convex catalog from ShoppyCore's SeedCatalog. Safe to run repeatedly.
+# Synchronizes Convex with SeedCatalog, removing products that are no longer present.
 set -euo pipefail
 export PATH=/opt/homebrew/bin:$PATH
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

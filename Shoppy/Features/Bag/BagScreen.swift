@@ -44,7 +44,7 @@ struct BagScreen: View {
 
     private var bag: some View {
         ShoppyScreen(eyebrow: "Your edit", title: "Bag") {
-            InfoBanner(needsReview ? "Measurements changed · Review these sizes" : "Demo bag — no real purchase")
+            InfoBanner(needsReview ? "Measurements changed · Review these sizes" : "Sandbox checkout · No real charge")
             ForEach(store.cart) { item in
                 if let product = store.product(item.productID) {
                     BagItemCard(item: item, product: product, groupNeedsReview: needsReview) {
@@ -61,13 +61,13 @@ struct BagScreen: View {
                     Text(store.subtotalCents.asPrice).font(.headline)
                 }
                 .foregroundStyle(Theme.ink)
-                Text("Shipping and tax shown in demo checkout.")
+                Text("Shipping and tax are shown in Whop sandbox.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.muted)
             }
             .shoppyCard()
         } footer: {
-            Button(store.canCheckout || !needsReview ? "Continue to demo checkout" : "Review sizes before checkout") {
+            Button(store.canCheckout || !needsReview ? "Continue to sandbox checkout" : "Review sizes before checkout") {
                 checkoutStart = .form
                 showsCheckout = true
             }
@@ -103,16 +103,16 @@ struct BagScreen: View {
         case "checkout":
             showsCheckout = true
         case "checkoutDecline":
-            store.checkout = DecliningCheckout()
+            store.checkout = PreviewCheckout(fails: true)
             showsCheckout = true
         case "processing":
-            checkoutStart = .processing
+            checkoutStart = .starting
             showsCheckout = true
         case "orderResult":
             checkoutStart = .result(CheckoutScreen.sampleOrder(store))
             showsCheckout = true
         case "declined":
-            checkoutStart = .declined
+            checkoutStart = .failed(nil)
             showsCheckout = true
         default:
             break
@@ -150,14 +150,22 @@ private struct BagItemCard: View {
                     }
                 }
                 .font(.subheadline)
-                HStack(spacing: 6) {
-                    Text("Qty \(item.quantity) · \(product.priceCents.asPrice) ·")
-                    Button("Remove", action: remove)
-                }
+                Text("Qty \(item.quantity) · \(product.priceCents.asPrice)")
                 .font(.subheadline)
                 .foregroundStyle(Theme.muted)
                 note
             }
+            Button {
+                withAnimation { remove() }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.warn)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(product.name) from bag")
         }
         .shoppyCard()
     }

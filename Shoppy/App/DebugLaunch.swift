@@ -5,7 +5,7 @@ import ShoppyCore
 /// Launch arguments for screenshots and smoke tests, for example:
 /// xcrun simctl launch <device> com.jeromelu.shoppy -shoppySeed YES -shoppyTab bag -shoppyRoute checkout
 enum DebugLaunch {
-    /// Start onboarded with the demo profile, both demo products saved, and both in the bag. Nothing is written to disk.
+    /// Start onboarded with the preview profile, two products saved, and two in the bag. Nothing is written to disk.
     static var seedsDemoState: Bool { UserDefaults.standard.bool(forKey: "shoppySeed") }
 
     static var tab: AppTab? {
@@ -26,6 +26,7 @@ extension AppStore {
     static func launchStore() -> AppStore {
         let store = AppStore(persistent: !DebugLaunch.seedsDemoState)
         if DebugLaunch.seedsDemoState {
+            store.checkout = PreviewCheckout()
             store.hasOnboarded = true
             var profile = BodyProfile(name: "Alex")
             profile.measurements = [

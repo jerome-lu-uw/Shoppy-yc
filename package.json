@@ -9,9 +9,11 @@
     "seed": "bash convex/scripts/seed.sh"
   },
   "dependencies": {
+    "@whop/sdk": "^2.8.1",
     "convex": "^1.50.0"
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
     "typescript": "^5.6.0"
   }
 }

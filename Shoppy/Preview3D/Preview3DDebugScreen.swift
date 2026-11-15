@@ -5,7 +5,7 @@ import SwiftUI
 struct Preview3DDebugScreen: View {
     @State private var angle = ViewAngle.front
     @State private var resetCount = 0
-    private let asset = UserDefaults.standard.string(forKey: "shoppyAsset") ?? "look-ink-stone"
+    private let asset = UserDefaults.standard.string(forKey: "shoppyAsset") ?? "look-smooth-spacer-quarter-zip"
 
     var body: some View {
         ShoppyScreen(eyebrow: "Style preview", title: "Explore 3D") {

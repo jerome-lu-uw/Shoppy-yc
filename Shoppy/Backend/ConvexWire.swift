@@ -128,14 +128,31 @@ struct WireOrder: Decodable {
     var number: String
     var lines: [Line]
     var totalCents: WireNumber
-    var status: DemoOrderStatus
+    var currency: String?
+    var status: OrderStatus
+    var environment: CheckoutEnvironment?
+    var clearedCartItemIDs: [String]?
+    var failureMessage: String?
     var createdAt: WireNumber
+    var paidAt: WireNumber?
 
-    var model: DemoOrder {
-        DemoOrder(
+    var model: Order {
+        Order(
             id: _id, number: number,
             lines: lines.map { OrderLine(productID: $0.productID, variantID: $0.variantID, title: $0.title, sizeLabel: $0.sizeLabel, quantity: Int($0.quantity.value), unitPriceCents: Int($0.unitPriceCents.value)) },
-            totalCents: Int(totalCents.value), status: status, createdAt: Date(timeIntervalSince1970: createdAt.value / 1000)
+            totalCents: Int(totalCents.value),
+            currency: currency ?? "usd",
+            status: status,
+            environment: environment ?? .demo,
+            clearedCartItemIDs: clearedCartItemIDs ?? [],
+            failureMessage: failureMessage,
+            createdAt: Date(timeIntervalSince1970: createdAt.value / 1000),
+            paidAt: paidAt.map { Date(timeIntervalSince1970: $0.value / 1000) }
         )
     }
+}
+
+struct WireCheckoutSession: Decodable {
+    var order: WireOrder
+    var checkoutURL: String
 }

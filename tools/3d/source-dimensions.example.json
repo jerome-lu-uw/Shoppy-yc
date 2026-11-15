@@ -1,0 +1,18 @@
+{
+  "source": {
+    "brand": "Example Brand",
+    "product_url": "https://example.com/products/example-garment",
+    "size_label": "M"
+  },
+  "units": "cm",
+  "measurements": {
+    "garment_length": 70,
+    "chest_circumference": 112,
+    "sleeve_length": 65,
+    "hem_circumference": 108
+  },
+  "meshy_scale": {
+    "mode": "height",
+    "measurement": "garment_length"
+  }
+}

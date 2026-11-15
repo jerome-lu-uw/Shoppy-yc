@@ -6,6 +6,9 @@ build/
 .build/
 .swiftpm/
 node_modules/
+__pycache__/
+*.pyc
+tools/3d/generated/
 .env
 .env.*
 !.env.example

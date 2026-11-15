@@ -57,6 +57,11 @@ struct ProductDetailScreen: View {
                         .font(.subheadline)
                         .foregroundStyle(Theme.muted)
                 }
+                if let sourceURL = product.sourceURL {
+                    Link("View product source", destination: sourceURL)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                }
             }
             .shoppyCard()
             Text(product.isFictional ? "Preview is an approximation. Demo catalog." : "Preview is an approximation.")

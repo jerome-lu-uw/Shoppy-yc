@@ -47,9 +47,9 @@ final class ConvexSync: RemoteSync {
             guard let store else { return }
             store.applyRemote(
                 profile: remoteProfile??.model,
-                savedIDs: remoteLikes.flatMap { $0.isEmpty ? nil : $0.map(\.productId) },
-                cart: remoteCart.flatMap { $0.isEmpty ? nil : $0.map(\.model) },
-                orders: remoteOrders.flatMap { $0.isEmpty ? nil : $0.map(\.model) }
+                savedIDs: remoteLikes.map { $0.map(\.productId) },
+                cart: remoteCart.map { $0.map(\.model) },
+                orders: remoteOrders.map { $0.map(\.model) }
             )
         }
     }

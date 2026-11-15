@@ -43,26 +43,76 @@ public struct OrderLine: Codable, Hashable, Sendable {
     }
 }
 
-public enum DemoOrderStatus: String, Codable, CaseIterable, Sendable {
+public enum OrderStatus: String, Codable, CaseIterable, Sendable {
     case confirmed, preparing, shipped
+    case pendingPayment, paid, paymentFailed, refunded
+
+    public var isPaymentTerminal: Bool {
+        self != .pendingPayment
+    }
 }
 
-/// A simulated order. No payment is taken and nothing ships.
-public struct DemoOrder: Codable, Hashable, Identifiable, Sendable {
+public enum CheckoutEnvironment: String, Codable, Sendable {
+    case demo, sandbox
+}
+
+/// An order priced by Shoppy and optionally paid through the Whop sandbox.
+public struct Order: Codable, Hashable, Identifiable, Sendable {
     public var id: String
-    /// Display number such as "SH-00128".
     public var number: String
     public var lines: [OrderLine]
     public var totalCents: Int
-    public var status: DemoOrderStatus
+    public var currency: String
+    public var status: OrderStatus
+    public var environment: CheckoutEnvironment
+    public var clearedCartItemIDs: [String]
+    public var failureMessage: String?
     public var createdAt: Date
+    public var paidAt: Date?
 
-    public init(id: String = UUID().uuidString, number: String, lines: [OrderLine], totalCents: Int, status: DemoOrderStatus = .confirmed, createdAt: Date = .now) {
+    public init(
+        id: String = UUID().uuidString,
+        number: String,
+        lines: [OrderLine],
+        totalCents: Int,
+        currency: String = "usd",
+        status: OrderStatus = .pendingPayment,
+        environment: CheckoutEnvironment = .sandbox,
+        clearedCartItemIDs: [String] = [],
+        failureMessage: String? = nil,
+        createdAt: Date = .now,
+        paidAt: Date? = nil
+    ) {
         self.id = id
         self.number = number
         self.lines = lines
         self.totalCents = totalCents
+        self.currency = currency
         self.status = status
+        self.environment = environment
+        self.clearedCartItemIDs = clearedCartItemIDs
+        self.failureMessage = failureMessage
         self.createdAt = createdAt
+        self.paidAt = paidAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, number, lines, totalCents, currency, status, environment
+        case clearedCartItemIDs, failureMessage, createdAt, paidAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        number = try values.decode(String.self, forKey: .number)
+        lines = try values.decode([OrderLine].self, forKey: .lines)
+        totalCents = try values.decode(Int.self, forKey: .totalCents)
+        currency = try values.decodeIfPresent(String.self, forKey: .currency) ?? "usd"
+        status = try values.decode(OrderStatus.self, forKey: .status)
+        environment = try values.decodeIfPresent(CheckoutEnvironment.self, forKey: .environment) ?? .demo
+        clearedCartItemIDs = try values.decodeIfPresent([String].self, forKey: .clearedCartItemIDs) ?? []
+        failureMessage = try values.decodeIfPresent(String.self, forKey: .failureMessage)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        paidAt = try values.decodeIfPresent(Date.self, forKey: .paidAt)
     }
 }

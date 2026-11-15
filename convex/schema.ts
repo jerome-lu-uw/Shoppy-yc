@@ -64,6 +64,13 @@ export const orderLine = v.object({
   unitPriceCents: v.number(),
 });
 
+export const checkoutCartItem = v.object({
+  itemId: v.string(),
+  productID: v.string(),
+  variantID: v.string(),
+  quantity: v.number(),
+});
+
 export default defineSchema({
   products: defineTable(product).index("by_productId", ["productId"]),
   profiles: defineTable({
@@ -100,10 +107,39 @@ export default defineSchema({
     number: v.string(),
     lines: v.array(orderLine),
     totalCents: v.number(),
-    status: v.union(v.literal("confirmed"), v.literal("preparing"), v.literal("shipped")),
-    isDemo: v.literal(true),
+    currency: v.optional(v.string()),
+    status: v.union(
+      v.literal("confirmed"),
+      v.literal("preparing"),
+      v.literal("shipped"),
+      v.literal("pendingPayment"),
+      v.literal("paid"),
+      v.literal("paymentFailed"),
+      v.literal("refunded"),
+    ),
+    environment: v.optional(v.union(v.literal("demo"), v.literal("sandbox"))),
+    isDemo: v.optional(v.literal(true)),
+    cartItems: v.optional(v.array(checkoutCartItem)),
+    clearedCartItemIDs: v.optional(v.array(v.string())),
+    checkoutURL: v.optional(v.string()),
+    whopCheckoutConfigurationID: v.optional(v.string()),
+    whopVariantID: v.optional(v.string()),
+    whopPaymentID: v.optional(v.string()),
+    failureMessage: v.optional(v.string()),
+    paidAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_owner", ["ownerId"])
-    .index("by_owner_key", ["ownerId", "idempotencyKey"]),
+    .index("by_owner_key", ["ownerId", "idempotencyKey"])
+    .index("by_whop_checkout", ["whopCheckoutConfigurationID"]),
+  whopEvents: defineTable({
+    eventId: v.string(),
+    type: v.string(),
+    orderId: v.id("orders"),
+    paymentID: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_order", ["orderId"]),
 });

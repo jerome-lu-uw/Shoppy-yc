@@ -52,29 +52,29 @@ struct YouScreen: View {
                 )
             }
             .shoppyCard()
-            RowCard(title: "Demo orders", value: store.orders.isEmpty ? nil : "\(store.orders.count)") { route = .orders }
+            RowCard(title: "Orders", value: store.orders.isEmpty ? nil : "\(store.orders.count)") { route = .orders }
         }
         .navigationDestination(item: $route) { route in
             switch route {
             case .editMeasurements: EditMeasurementsScreen()
             case .manageModel: ManageModelScreen()
-            case .orders: DemoOrdersScreen()
+            case .orders: OrdersScreen()
             }
         }
     }
 }
 
-struct DemoOrdersScreen: View {
+struct OrdersScreen: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
-        ShoppyScreen(eyebrow: "Your fitting room", title: "Demo orders", trailing: { ExitButton(title: "Back") }) {
+        ShoppyScreen(eyebrow: "Your fitting room", title: "Orders", trailing: { ExitButton(title: "Back") }) {
             if store.orders.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("No demo orders yet")
+                    Text("No orders yet")
                         .font(.headline)
                         .foregroundStyle(Theme.ink)
-                    Text("Demo checkout places a simulated order. Nothing is charged and nothing ships.")
+                    Text("Whop sandbox checkout uses test payments. No real money moves and nothing ships.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.muted)
                 }
@@ -87,7 +87,7 @@ struct DemoOrdersScreen: View {
                                 .font(.headline)
                                 .foregroundStyle(Theme.ink)
                             Spacer()
-                            Text("Simulated \u{00B7} \(order.status.rawValue.capitalized)")
+                            Text("\(order.environment == .sandbox ? "Sandbox" : "Demo") \u{00B7} \(statusLabel(order.status))")
                                 .font(.subheadline)
                                 .foregroundStyle(Theme.muted)
                         }
@@ -104,7 +104,7 @@ struct DemoOrdersScreen: View {
                         }
                         .font(.subheadline)
                         .foregroundStyle(Theme.ink)
-                        Text("Demo order. No payment taken, nothing shipped.")
+                        Text(order.environment == .sandbox ? "Whop sandbox order. No real charge or shipment." : "Legacy demo order. No charge or shipment.")
                             .font(.footnote)
                             .foregroundStyle(Theme.muted)
                     }
@@ -113,6 +113,18 @@ struct DemoOrdersScreen: View {
             }
         } footer: {
             EmptyView()
+        }
+    }
+
+    private func statusLabel(_ status: OrderStatus) -> String {
+        switch status {
+        case .pendingPayment: "Pending"
+        case .paid: "Paid"
+        case .paymentFailed: "Failed"
+        case .refunded: "Refunded"
+        case .confirmed: "Confirmed"
+        case .preparing: "Preparing"
+        case .shipped: "Shipped"
         }
     }
 }
