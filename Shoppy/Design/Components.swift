@@ -54,6 +54,7 @@ struct ShoppyScreen<Trailing: View, Content: View, Footer: View>: View {
             .padding(.horizontal, Theme.margin)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
+            .background(Theme.ivory)
         }
         .toolbar(.hidden, for: .navigationBar)
     }

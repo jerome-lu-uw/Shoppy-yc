@@ -1,0 +1,23 @@
+[
+  {
+    "name": "look-ink-stone",
+    "top": "#1B2A44",
+    "pants": "#C9BDAA"
+  },
+  {
+    "name": "look-oat-charcoal",
+    "top": "#D9CDB8",
+    "pants": "#33363B"
+  },
+  {
+    "name": "look-moss-stone",
+    "top": "#5B6646",
+    "pants": "#C9BDAA"
+  },
+  {
+    "name": "look-ivory-clay-wide",
+    "top": "#ECE7DB",
+    "pants": "#A8674A",
+    "leg": "wide"
+  }
+]

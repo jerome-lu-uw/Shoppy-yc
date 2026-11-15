@@ -47,6 +47,7 @@ public enum SeedCatalog {
             priceCents: 5800,
             tagline: "Ribbed stretch. Easy layers.",
             details: ["Stretch cotton rib · Fitted cut", "Cold wash · Fictional demo specification"],
+            previewAsset: "look-oat-charcoal",
             hasStretch: true,
             variants: [
                 ProductVariant(id: "marlowe-pine-harbor-rib-ls-oat-xs", sizeLabel: "XS", garment: GarmentDimensions(chest: 90, sleeve: 58, length: 60)),
@@ -65,6 +66,7 @@ public enum SeedCatalog {
             priceCents: 7400,
             tagline: "Textured cotton. Weekend weight.",
             details: ["Waffle-knit cotton · Regular cut", "Cold wash · Fictional demo specification"],
+            previewAsset: "look-moss-stone",
             variants: [
                 ProductVariant(id: "ridgeway-waffle-henley-moss-s", sizeLabel: "S", garment: GarmentDimensions(chest: 102, sleeve: 63, length: 69)),
                 ProductVariant(id: "ridgeway-waffle-henley-moss-m", sizeLabel: "M", inStock: false, garment: GarmentDimensions(chest: 110, sleeve: 65, length: 71)),
@@ -81,6 +83,7 @@ public enum SeedCatalog {
             priceCents: 10800,
             tagline: "Full length. Easy drape.",
             details: ["Stretch crepe · Wide leg", "Cold wash · Fictional demo specification"],
+            previewAsset: "look-ivory-clay-wide",
             hasStretch: true,
             variants: [
                 ProductVariant(id: "oakhaven-studio-wide-pant-clay-s", sizeLabel: "S", garment: GarmentDimensions(waist: 78, hips: 100, inseam: 76)),
