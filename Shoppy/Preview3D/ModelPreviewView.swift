@@ -26,10 +26,9 @@ struct ModelPreviewView: View {
     var allowsRotation = false
     var resetCount = 0
 
-    @State private var pivot = Entity()
+    @State private var pivot: Entity?
     @State private var loadFailed = false
-    @State private var isLoaded = false
-    @State private var dragYaw: Float = 0
+    @State private var yaw: Float?
     @State private var yawAtDragStart: Float?
 
     private var source: URL? {
@@ -39,15 +38,7 @@ struct ModelPreviewView: View {
     var body: some View {
         ZStack {
             Theme.studio
-            if loadFailed || source == nil {
-                VStack(spacing: 8) {
-                    Image(systemName: "cube.transparent")
-                        .font(.title)
-                    Text("Preview unavailable")
-                        .font(.footnote)
-                }
-                .foregroundStyle(Theme.muted)
-            } else {
+            if let source, !loadFailed {
                 RealityView { content in
                     content.camera = .virtual
                     let camera = PerspectiveCamera()
@@ -62,22 +53,35 @@ struct ModelPreviewView: View {
                     fill.light.intensity = 900
                     fill.look(at: .zero, from: [-3, 1.5, 2], relativeTo: nil)
                     content.add(fill)
+                    guard let model = await ModelLibrary.shared.entity(for: source) else {
+                        loadFailed = true
+                        return
+                    }
+                    let pivot = Entity()
+                    pivot.orientation = simd_quatf(angle: yaw ?? angle.yaw, axis: [0, 1, 0])
+                    pivot.addChild(model)
                     content.add(pivot)
+                    self.pivot = pivot
                 }
-                .opacity(isLoaded ? 1 : 0)
+                .id(source)
                 .gesture(allowsRotation ? rotation : nil)
-                if !isLoaded {
+                if pivot == nil {
                     ProgressView()
                 }
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "cube.transparent")
+                        .font(.title)
+                    Text("Preview unavailable")
+                        .font(.footnote)
+                }
+                .foregroundStyle(Theme.muted)
             }
         }
         .clipShape(.rect(cornerRadius: Theme.cardRadius))
-        .task(id: source) {
-            await load()
-        }
-        .onAppear {
-            dragYaw = angle.yaw
-            pivot.orientation = simd_quatf(angle: angle.yaw, axis: [0, 1, 0])
+        .onChange(of: source) {
+            pivot = nil
+            loadFailed = false
         }
         .onChange(of: angle) {
             snap()
@@ -92,10 +96,11 @@ struct ModelPreviewView: View {
     private var rotation: some Gesture {
         DragGesture(minimumDistance: 4)
             .onChanged { value in
-                let start = yawAtDragStart ?? dragYaw
+                let start = yawAtDragStart ?? yaw ?? angle.yaw
                 yawAtDragStart = start
-                dragYaw = start + Float(value.translation.width) * 0.012
-                pivot.orientation = simd_quatf(angle: dragYaw, axis: [0, 1, 0])
+                let newYaw = start + Float(value.translation.width) * 0.012
+                yaw = newYaw
+                pivot?.orientation = simd_quatf(angle: newYaw, axis: [0, 1, 0])
             }
             .onEnded { _ in
                 yawAtDragStart = nil
@@ -103,25 +108,11 @@ struct ModelPreviewView: View {
     }
 
     private func snap() {
-        dragYaw = angle.yaw
+        yaw = angle.yaw
+        guard let pivot else { return }
         var transform = pivot.transform
         transform.rotation = simd_quatf(angle: angle.yaw, axis: [0, 1, 0])
         pivot.move(to: transform, relativeTo: pivot.parent, duration: 0.35, timingFunction: .easeInOut)
-    }
-
-    private func load() async {
-        guard let source else { return }
-        isLoaded = false
-        loadFailed = false
-        for child in Array(pivot.children) {
-            child.removeFromParent()
-        }
-        guard let model = await ModelLibrary.shared.entity(for: source) else {
-            loadFailed = true
-            return
-        }
-        pivot.addChild(model)
-        isLoaded = true
     }
 }
 
