@@ -1,0 +1,22 @@
+project:
+    id: 43dfa858-5bc5-4487-ae31-15b0f09192b2
+session:
+    idle_timeout_seconds: 600
+build:
+    framework: ios
+    profiles:
+        preview:
+            ios:
+                app_id: "509a2d08-86e6-4697-9962-bcf0909a17a5"
+                build_commands:
+                    - xcodebuild -project 'Shoppy.xcodeproj' -scheme 'Shoppy' -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' ARCHS=arm64 -derivedDataPath build
+                output_path: build/Build/Products/Debug-iphonesimulator/*.app
+pr_review:
+    enabled: true
+    build:
+        kind: revyl
+        profile: preview
+    proof_of_changes:
+        enabled: true
+        harness:
+            kind: revyl
