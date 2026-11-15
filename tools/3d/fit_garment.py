@@ -8,10 +8,10 @@ Run headless with Blender 3.6 or newer:
         --look look-smooth-spacer-quarter-zip --install
 
 The garment keeps the real-world scale it arrives with. It is placed on the
-avatar's shoulders, its sleeves follow the avatar's arms, the cloth comes out
-only where the body would stand well proud of it, and the scan faces it covers
-are hidden. The result is a style preview, not a cloth simulation and not a
-statement about fit.
+avatar's shoulders, each sleeve hangs in one straight line along the avatar's
+arm, the cloth comes out only where the body would stand well proud of it, and
+the scan faces it covers are hidden. The result is a style preview, not a cloth
+simulation and not a statement about fit.
 """
 
 import argparse
@@ -31,7 +31,7 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
-PIPELINE_VERSION = "fit-1"
+PIPELINE_VERSION = "fit-2"
 REPO = Path(__file__).resolve().parents[2]
 
 OUTER_CLEARANCE = 0.006
@@ -41,6 +41,8 @@ MAX_PUSH = 0.08
 PUSH_RADIUS = 0.05
 PUSH_ROUNDS = 4
 ARM_WIDTH = 0.075
+ARM_REACH = 0.12
+ARM_MARGIN = 0.03
 SLEEVE_MARGIN = 0.014
 MASK_REACH = 0.15
 MASK_POKE = 0.05
@@ -303,34 +305,51 @@ def harmonic_weights(n, edges, fixed, values, rounds=600):
     return w
 
 
+def straight(heights, offsets, along, shoulder):
+    """The straight line through the shoulder that best fits the offsets along the sleeve."""
+    pin_height, pin = heights[shoulder].mean(), offsets[shoulder].mean()
+    reach = heights[along] - pin_height
+    slope = (reach * (offsets[along] - pin)).sum() / (reach ** 2).sum()
+    return pin + slope * (heights - pin_height), slope
+
+
 def align_sleeves(co, faces, edges, body, midline):
-    """Slides each sleeve, height by height, so its outer edge follows the avatar's arm."""
+    """Tilts each sleeve, as one straight line from the shoulder, to run along the avatar's arm.
+
+    A sleeve never bends to follow an elbow. It stands in for the arm it covers, so the arm is returned
+    for the mask to hide: the outer ARM_WIDTH of the body beside a sleeve, and any bare skin beside one."""
     floor, top = co[:, 2].min(), co[:, 2].max()
     heights = np.arange(floor + 0.005, top - 0.10, 0.01)
+    shoulder = heights > top - 0.20
     cut, cuffs = find_cuffs(co, edges, midline)
     out = co.copy()
+    arm = np.zeros(len(body["co"]), dtype=bool)
     stats = {"free_cuff_height": None if cut is None else round(float(cut - floor), 3)}
-    bare = body["co"][body["skin"]]
+    skin = body["co"][body["skin"]]
     for side in (-1, 1):
-        edge, dx, dy = (np.full(len(heights), np.nan) for _ in range(3))
+        edge, body_edge, dx, dy = (np.full(len(heights), np.nan) for _ in range(4))
         forearm = np.zeros(len(heights), dtype=bool)
         for k, h in enumerate(heights):
             mine = cross_section(co, faces, h)
             theirs = cross_section(body["co"], body["faces"], h)
             if not len(mine) or not len(theirs):
                 continue
-            edge[k] = (mine[:, 0] * side).max()
-            sleeve = mine[mine[:, 0] * side > edge[k] - ARM_WIDTH]
-            arm = bare[(np.abs(bare[:, 2] - h) < 0.02) & ((bare[:, 0] - midline) * side > 0.06)]
-            forearm[k] = len(arm) >= 5
+            edge[k], body_edge[k] = (mine[:, 0] * side).max(), (theirs[:, 0] * side).max()
+            lobe = mine[mine[:, 0] * side > edge[k] - ARM_WIDTH]
+            limb = skin[(np.abs(skin[:, 2] - h) < 0.02) & ((skin[:, 0] - midline) * side > 0.06)]
+            forearm[k] = len(limb) >= 5
             if not forearm[k]:
-                arm = theirs[theirs[:, 0] * side > (theirs[:, 0] * side).max() - ARM_WIDTH]
-            dx[k] = ((arm[:, 0] * side).max() + SLEEVE_MARGIN - edge[k]) * side
-            dy[k] = (arm[:, 1].min() + arm[:, 1].max()) / 2 - (sleeve[:, 1].min() + sleeve[:, 1].max()) / 2
+                limb = theirs[theirs[:, 0] * side > body_edge[k] - ARM_WIDTH]
+            dx[k] = ((limb[:, 0] * side).max() + SLEEVE_MARGIN - edge[k]) * side
+            dy[k] = (limb[:, 1].min() + limb[:, 1].max()) / 2 - (lobe[:, 1].min() + lobe[:, 1].max()) / 2
         if forearm.any():
             wrist = forearm.argmax()
             dx[:wrist], dy[:wrist] = dx[wrist], dy[wrist]
-        edge, dx, dy = (smooth(fill_gaps(v)) for v in (edge, dx, dy))
+        edge, body_edge, dx, dy = (smooth(fill_gaps(v)) for v in (edge, body_edge, dx, dy))
+        low = co[cuffs[side], 2].min() if cut is not None else floor
+        along = ~shoulder & (heights >= low)
+        (dx, lean), (dy, pitch) = straight(heights, dx, along, shoulder), straight(heights, dy, along, shoulder)
+
         inset = np.interp(co[:, 2], heights, edge) - co[:, 0] * side
         moves = inset < 0.07
         stays = (inset > 0.13) | (co[:, 2] > top - 0.10) | (np.abs(co[:, 0] - midline) < 0.09)
@@ -342,12 +361,27 @@ def align_sleeves(co, faces, edges, body, midline):
         weight = harmonic_weights(len(co), edges, moves | stays, moves.astype(float))
         out[:, 0] += weight * np.interp(co[:, 2], heights, dx)
         out[:, 1] += weight * np.interp(co[:, 2], heights, dy)
+
+        cloth = out[weight > 0.5]
+        if cut is not None and len(cloth):
+            tree = KDTree(len(cloth))
+            for i, p in enumerate(cloth):
+                tree.insert(p, i)
+            tree.balance()
+            x, z = body["co"][:, 0] * side, body["co"][:, 2]
+            hem = co[stays, 2].min()
+            outer = (x > np.interp(z, heights, body_edge) - ARM_WIDTH) & (z > max(low, hem) + ARM_MARGIN) & (z < heights[-1])
+            bare = body["skin"] & (x - midline * side > 0.10) & (z > low + ARM_MARGIN)
+            for i in np.where(outer | bare)[0]:
+                arm[i] = tree.find(body["co"][i])[2] < ARM_REACH
         stats["minus_x" if side < 0 else "plus_x"] = {
-            "sideways_m": [round(float(dx.min()), 3), round(float(dx.max()), 3)],
-            "depth_m": [round(float(dy.min()), 3), round(float(dy.max()), 3)],
+            "lean_degrees": round(float(np.degrees(np.arctan(lean * side))), 1),
+            "pitch_degrees": round(float(np.degrees(np.arctan(pitch))), 1),
+            "cuff_shift_m": [round(float(dx[0]), 3), round(float(dy[0]), 3)],
+            "arm_vertices_hidden": int((arm & ((body["co"][:, 0] - midline) * side > 0)).sum()),
         }
-        print(f"sleeve {side:+d}: sideways {dx.min():+.3f}..{dx.max():+.3f} depth {dy.min():+.3f}..{dy.max():+.3f}")
-    return out, stats
+        print(f"sleeve {side:+d}: straight, lean {np.degrees(np.arctan(lean * side)):+.1f} deg, pitch {np.degrees(np.arctan(pitch)):+.1f} deg, cuff shift {dx[0]:+.3f} {dy[0]:+.3f}")
+    return out, arm, stats
 
 
 # ---------------------------------------------------------------- collision
@@ -367,7 +401,9 @@ def neighbours(co, radius):
 
 
 def body_samples(body, low, high):
-    """Points on the body surface between the heights the garment spans, their outward normals, and whether they are bare skin."""
+    """Points on the body surface between the heights the garment spans, their outward normals, and whether they are bare skin.
+
+    The arm beside a sleeve is left out: the sleeve stands in for it and must not chase it."""
     co, faces = body["co"], body["faces"]
     corners = co[faces]
     face_normals = np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0])
@@ -375,7 +411,8 @@ def body_samples(body, low, high):
     points = np.concatenate([co, corners.mean(1)])
     normals = np.concatenate([vertex_normals(co, faces), face_normals])
     skin = np.concatenate([body["skin"], body["skin"][faces].all(axis=1)])
-    inside = (points[:, 2] > low) & (points[:, 2] < high)
+    arm = np.concatenate([body["arm"], body["arm"][faces].any(axis=1)])
+    inside = (points[:, 2] > low) & (points[:, 2] < high) & ~arm
     return points[inside], normals[inside], skin[inside]
 
 
@@ -407,13 +444,14 @@ def push_out(co, faces, body):
 
     At the hem and cuffs the cloth must clear the body, and at the collar it must clear bare skin.
     Elsewhere the garment keeps its own shape while the body sits up to POKE_TOLERANCE outside it,
-    and the mask hides that part of the scan. Each push drags its neighbourhood along, so folds survive."""
+    and the mask hides that part of the scan. The arm beside a sleeve never pushes, so the sleeve
+    keeps its line. Each push drags its neighbourhood along, so folds survive."""
     n = len(co)
     low, high = co[:, 2].min(), co[:, 2].max()
     points, normals, skin = body_samples(body, low, high)
-    below_collar = POKE_TOLERANCE * np.clip((high - points[:, 2] - RIM_BAND) / RIM_BAND, 0, 1)
-    above_hem = POKE_TOLERANCE * np.clip((points[:, 2] - low - RIM_BAND) / RIM_BAND, 0, 1)
-    tolerance = np.minimum(above_hem, np.where(skin, below_collar, POKE_TOLERANCE))
+    above_hem = np.clip((points[:, 2] - low - RIM_BAND) / RIM_BAND, 0, 1)
+    below_collar = np.clip((high - points[:, 2] - RIM_BAND) / RIM_BAND, 0, 1)
+    tolerance = POKE_TOLERANCE * np.minimum(above_hem, np.where(skin, below_collar, 1))
     rows, cols, dist = neighbours(co, PUSH_RADIUS)
     falloff = (1 - (dist / PUSH_RADIUS) ** 2) ** 2
     count = np.bincount(rows, falloff, minlength=n)
@@ -437,7 +475,7 @@ def push_out(co, faces, body):
 # ---------------------------------------------------------------- body mask
 
 def mask_body(body, garment_co, garment_faces):
-    """Drops the scan faces the garment hides or that sit just outside it, so the garment reads as the outer layer."""
+    """Drops the scan faces the garment hides or that sit just outside it, and the arm beside a sleeve, so the garment reads as the outer layer."""
     co, faces = body["co"], body["faces"]
     normals = vertex_normals(co, faces)
     cloth = BVHTree.FromPolygons(garment_co.tolist(), garment_faces.tolist())
@@ -454,6 +492,7 @@ def mask_body(body, garment_co, garment_faces):
         hits = sum(cloth.ray_cast(origin, ray, MASK_REACH)[0] is not None for ray in rays)
         beneath = cloth.ray_cast(Vector(co[i]) - normal * 0.001, -normal, MASK_POKE)[0] is not None
         covered[i] = beneath or hits >= len(rays) - 1
+    covered |= body["arm"]
     keep = ~covered[faces].all(axis=1)
     kept = faces[keep]
     island = components(len(co), unique_edges(kept))[kept[:, 0]]
@@ -685,13 +724,14 @@ def main():
         edges = unique_edges(garment["faces"])
         offset, placement = place(garment, body, bvh)
         placed = garment["co"] + offset
-        posed, sleeves = align_sleeves(placed, garment["faces"], edges, body, placement["midline_x"])
+        posed, body["arm"], sleeves = align_sleeves(placed, garment["faces"], edges, body, placement["midline_x"])
         fitted, moved = push_out(posed, garment["faces"], body)
         keep = mask_body(body, fitted, garment["faces"])
         package(build, body, keep, garment, fitted, usdz, args.avatar)
         checker = subprocess.run(["usdchecker", "--arkit", str(usdz)], capture_output=True, text=True)
         complaints = [line for line in (checker.stdout + checker.stderr).splitlines() if line.startswith("Error")]
 
+        shown = np.concatenate([body["co"][np.unique(body["faces"][keep])], fitted])
         report = {
             "cache_key": key,
             "look": args.look,
@@ -714,7 +754,7 @@ def main():
             "body_faces_hidden": int((~keep).sum()),
             "body_faces_total": int(len(keep)),
             "usdchecker_arkit": {"passed": checker.returncode == 0, "errors": complaints},
-            "bounds_m": {"min": [round(float(v), 4) for v in np.minimum(body["co"].min(0), fitted.min(0))], "max": [round(float(v), 4) for v in np.maximum(body["co"].max(0), fitted.max(0))]},
+            "bounds_m": {"min": [round(float(v), 4) for v in shown.min(0)], "max": [round(float(v), 4) for v in shown.max(0)]},
             "review": sorted(f"review/{name}.png" for name in REVIEW_SHOTS),
             "seconds": round(time.time() - started, 1),
         }
