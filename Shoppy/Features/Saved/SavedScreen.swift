@@ -54,7 +54,7 @@ struct SavedScreen: View {
     private func tile(_ product: Product) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Button { detail = product } label: {
-                ProductPhoto(product: product)
+                ProductPreviewTile(product: product)
                     .frame(height: 200)
             }
             .buttonStyle(.plain)

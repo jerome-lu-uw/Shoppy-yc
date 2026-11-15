@@ -123,6 +123,15 @@ struct OnboardingFlow: View {
                     }
                 }
         }
+        #if DEBUG
+        .task {
+            guard DebugLaunch.route == "onboarding:walk" else { return }
+            for step in [OnboardingStep.basics, .measurements, .model, .reveal] {
+                try? await Task.sleep(for: .seconds(1))
+                path.append(step)
+            }
+        }
+        #endif
     }
 }
 
