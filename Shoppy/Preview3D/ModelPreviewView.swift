@@ -4,12 +4,19 @@ enum ViewAngle: String, CaseIterable {
     case front, side, back
 }
 
-/// The dressed model on a studio backdrop. Pass the product's previewAsset; nil shows the default look.
+/// A 3D model on a studio backdrop.
+/// - assetName: a bundled USDZ. Pass a product's previewAsset for the dressed look; nil shows "scan", the bare calibrated model.
+/// - modelURL: a USDZ file on disk, such as an imported model. Takes precedence over assetName.
+/// - angle: the camera snaps to this side whenever it changes.
+/// - allowsRotation: lets the user drag to rotate. Leave false inside swipeable cards.
+/// - resetCount: increment to snap back to `angle` after free rotation.
 /// Placeholder rendering until the RealityKit viewer lands; the initializer stays the same.
 struct ModelPreviewView: View {
     var assetName: String?
+    var modelURL: URL?
     var angle: ViewAngle = .front
     var allowsRotation = false
+    var resetCount = 0
 
     var body: some View {
         ZStack {
