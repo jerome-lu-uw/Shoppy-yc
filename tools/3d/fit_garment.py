@@ -367,15 +367,16 @@ def neighbours(co, radius):
 
 
 def body_samples(body, low, high):
-    """Points and outward normals on the body surface between the heights the garment spans."""
+    """Points on the body surface between the heights the garment spans, their outward normals, and whether they are bare skin."""
     co, faces = body["co"], body["faces"]
     corners = co[faces]
     face_normals = np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0])
     face_normals /= np.maximum(np.linalg.norm(face_normals, axis=1), 1e-12)[:, None]
     points = np.concatenate([co, corners.mean(1)])
     normals = np.concatenate([vertex_normals(co, faces), face_normals])
+    skin = np.concatenate([body["skin"], body["skin"][faces].all(axis=1)])
     inside = (points[:, 2] > low) & (points[:, 2] < high)
-    return points[inside], normals[inside]
+    return points[inside], normals[inside], skin[inside]
 
 
 def required_push(co, faces, points, normals, tolerance):
@@ -404,14 +405,15 @@ def required_push(co, faces, points, normals, tolerance):
 def push_out(co, faces, body):
     """Brings the garment out where the body would stand well proud of it.
 
-    Near the collar, hem and cuffs the cloth must clear the body. Elsewhere the garment keeps its own
-    shape while the body sits up to POKE_TOLERANCE outside it, and the mask hides that part of the scan.
-    Each push drags its neighbourhood along, so folds survive."""
+    At the hem and cuffs the cloth must clear the body, and at the collar it must clear bare skin.
+    Elsewhere the garment keeps its own shape while the body sits up to POKE_TOLERANCE outside it,
+    and the mask hides that part of the scan. Each push drags its neighbourhood along, so folds survive."""
     n = len(co)
     low, high = co[:, 2].min(), co[:, 2].max()
-    points, normals = body_samples(body, low, high)
-    rim = np.minimum(points[:, 2] - low, high - points[:, 2])
-    tolerance = POKE_TOLERANCE * np.clip((rim - RIM_BAND) / RIM_BAND, 0, 1)
+    points, normals, skin = body_samples(body, low, high)
+    below_collar = POKE_TOLERANCE * np.clip((high - points[:, 2] - RIM_BAND) / RIM_BAND, 0, 1)
+    above_hem = POKE_TOLERANCE * np.clip((points[:, 2] - low - RIM_BAND) / RIM_BAND, 0, 1)
+    tolerance = np.minimum(above_hem, np.where(skin, below_collar, POKE_TOLERANCE))
     rows, cols, dist = neighbours(co, PUSH_RADIUS)
     falloff = (1 - (dist / PUSH_RADIUS) ** 2) ** 2
     count = np.bincount(rows, falloff, minlength=n)
