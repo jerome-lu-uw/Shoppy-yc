@@ -1,0 +1,11 @@
+.DS_Store
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+.build/
+.swiftpm/
+node_modules/
+.env
+.env.*
+!.env.example
